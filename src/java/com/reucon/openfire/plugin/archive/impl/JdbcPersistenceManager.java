@@ -173,6 +173,7 @@ public class JdbcPersistenceManager implements PersistenceManager {
             + "ofMessageArchive.messageID, " + "ofConParticipant.bareJID "
             + "FROM ofMessageArchive "
             + "INNER JOIN ofConParticipant ON ofMessageArchive.conversationID = ofConParticipant.conversationID "
+            + "INNER JOIN ofConversation ON ofMessageArchive.conversationID = ofConversation.conversationID "
             + "WHERE (ofMessageArchive.stanza IS NOT NULL OR ofMessageArchive.body IS NOT NULL) ";
 
     public static final String SELECT_MESSAGE_ORACLE = "SELECT "
@@ -189,6 +190,7 @@ public class JdbcPersistenceManager implements PersistenceManager {
      public static final String COUNT_MESSAGES = "SELECT COUNT(DISTINCT ofMessageArchive.messageID) "
             + "FROM ofMessageArchive "
             + "INNER JOIN ofConParticipant ON ofMessageArchive.conversationID = ofConParticipant.conversationID "
+            + "INNER JOIN ofConversation ON ofMessageArchive.conversationID = ofConversation.conversationID "
             + "WHERE (ofMessageArchive.stanza IS NOT NULL OR ofMessageArchive.body IS NOT NULL) ";
 
     @Override
@@ -465,7 +467,7 @@ public class JdbcPersistenceManager implements PersistenceManager {
             }
         }
         if(withJid != null) {
-            appendWhere(whereSB, "( ", MESSAGE_TO_JID, " = ? OR ", MESSAGE_FROM_JID, " = ? )");
+            appendWhere(whereSB, "( ", MESSAGE_TO_JID, " = ? OR ", MESSAGE_FROM_JID, " = ? ) AND (ofConversation.room IS NULL OR ofConversation.room = ? ) ");
         }
         if (whereSB.length() != 0) {
             querySB.append(" AND ").append(whereSB);
@@ -702,7 +704,8 @@ public class JdbcPersistenceManager implements PersistenceManager {
             pstmt.setString(parameterIndex++, ownerJid);
         }
         if (withJid != null) {
-            // Add twice due to OR operator
+            // Add triply due to OR operators
+            pstmt.setString(parameterIndex++, withJid);
             pstmt.setString(parameterIndex++, withJid);
             pstmt.setString(parameterIndex++, withJid);
         }
