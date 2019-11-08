@@ -166,11 +166,11 @@ public class JdbcPersistenceManager implements PersistenceManager {
 
     // public static final String SELECT_PARTICIPANTS_BY_CONVERSATION =
     // "SELECT participantId,startTime,endTime,jid FROM archiveParticipants WHERE conversationId =? ORDER BY startTime";
-     public static final String SELECT_MESSAGES = "SELECT DISTINCT " + "ofMessageArchive.fromJID, "
+    public static final String SELECT_MESSAGES = "SELECT DISTINCT " + "ofMessageArchive.fromJID, "
             + "ofMessageArchive.toJID, " + "ofMessageArchive.sentDate, " + "ofMessageArchive.stanza, "
-            + "ofMessageArchive.messageID, " + "ofConParticipant.bareJID "
+            + "ofMessageArchive.messageID, " + "ofMessageArchive.fromJID "
             + "FROM ofMessageArchive "
-            + "INNER JOIN ofConParticipant ON ofMessageArchive.conversationID = ofConParticipant.conversationID "
+            + "LEFT JOIN ofConversation ON ofMessageArchive.conversationID = ofConversation.conversationID "
             + "WHERE (ofMessageArchive.stanza IS NOT NULL OR ofMessageArchive.body IS NOT NULL) ";
 
     public static final String SELECT_MESSAGE_ORACLE = "SELECT "
@@ -184,9 +184,9 @@ public class JdbcPersistenceManager implements PersistenceManager {
             + CONVERSATION_OWNER_JID
             + " = ?";
 
-     public static final String COUNT_MESSAGES = "SELECT COUNT(DISTINCT ofMessageArchive.messageID) "
+    public static final String COUNT_MESSAGES = "SELECT COUNT(DISTINCT ofMessageArchive.messageID) "
             + "FROM ofMessageArchive "
-            + "INNER JOIN ofConParticipant ON ofMessageArchive.conversationID = ofConParticipant.conversationID "
+            + "LEFT JOIN ofConversation ON ofMessageArchive.conversationID = ofConversation.conversationID "
             + "WHERE (ofMessageArchive.stanza IS NOT NULL OR ofMessageArchive.body IS NOT NULL) ";
 
     @Override
@@ -456,16 +456,15 @@ public class JdbcPersistenceManager implements PersistenceManager {
         if (endDate != null) {
             appendWhere(whereSB, MESSAGE_SENT_DATE, " <= ?");
         }
-        if (owner != null) {
-            if( isOracleDB ) {
-                appendWhere( whereSB, "ofMessageArchive.conversationID in ( ", SELECT_CONVERSATIONS_BY_OWNER, " )" );
-            }
-            else {
-                appendWhere(whereSB, CONVERSATION_OWNER_JID, " = ?");
-            }
+        if (owner != null && with != null) {
+            appendWhere(whereSB, "CASE WHEN ofConversation.room = ", MESSAGE_TO_JID, " THEN "+
+                "( ", MESSAGE_TO_JID, " = ? ) "+
+                "ELSE "+
+                "( ", MESSAGE_TO_JID, " = ? AND ", MESSAGE_FROM_JID, " = ? ) OR ( ", MESSAGE_FROM_JID, " = ? AND ", MESSAGE_TO_JID, " = ? ) "+
+                "END ");
         }
-        if(with != null) {
-            appendWhere(whereSB, "( ", MESSAGE_TO_JID, " = ? OR ", MESSAGE_FROM_JID, " = ? )");
+        else{
+            appendWhere(whereSB, "('1' = '2')");
         }
         if (whereSB.length() != 0) {
             querySB.append(" AND ").append(whereSB);
@@ -708,13 +707,12 @@ public class JdbcPersistenceManager implements PersistenceManager {
         if (endDate != null) {
             pstmt.setLong(parameterIndex++, dateToMillis(endDate));
         }
-        if (owner != null) {
+        if (owner != null && with != null) {
+            pstmt.setString(parameterIndex++, with.toBareJID());
+            pstmt.setString(parameterIndex++, with.toBareJID());
             pstmt.setString(parameterIndex++, owner.toBareJID());
-        }
-        if (with != null) {
-            // Add twice due to OR operator
-            pstmt.setString(parameterIndex++, with.toString());
-            pstmt.setString(parameterIndex++, with.toString());
+            pstmt.setString(parameterIndex++, with.toBareJID());
+            pstmt.setString(parameterIndex++, owner.toBareJID());
         }
         return parameterIndex;
     }
