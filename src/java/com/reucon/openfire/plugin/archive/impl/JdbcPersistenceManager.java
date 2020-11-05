@@ -477,7 +477,7 @@ public class JdbcPersistenceManager implements PersistenceManager {
                 Log.debug( "Room affiliation: " + aff);
 
                 //have permission
-                if (aff == MUCRole.Affiliation.owner || aff == MUCRole.Affiliation.member) {
+                if (aff == MUCRole.Affiliation.owner || aff == MUCRole.Affiliation.member || !room.isMembersOnly()) {
                     source = "room";
                     appendWhere(whereSB, "( ", MESSAGE_TO_JID, " = ? ) ");
                 }
